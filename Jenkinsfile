@@ -1,26 +1,64 @@
 pipeline {
     agent any
 
+    options {
+        timestamps()
+        ansiColor('xterm')
+    }
+
+    environment {
+        PYTHON = 'python'
+    }
+
     stages {
-        stage('Install Dependencies') {
+
+        stage('Checkout') {
             steps {
-                bat 'python -m pip install -r requirements.txt'
+                checkout scm
             }
         }
+
+        stage('Install Dependencies') {
+            steps {
+                bat """
+                    %PYTHON% -m pip install --upgrade pip
+                    %PYTHON% -m pip install -r requirements.txt
+                """
+            }
+        }
+
         stage('Run Tests') {
             steps {
-                bat 'python -m pytest test_calculator.py -v'
+                bat """
+                    %PYTHON% -m pytest test_calculator.py -v --junitxml=pytest-report.xml
+                """
             }
         }
     }
 
     post {
+
+        always {
+            junit allowEmptyResults: true, testResults: 'pytest-report.xml'
+            archiveArtifacts artifacts: 'pytest-report.xml', fingerprint: true
+        }
+
+        success {
+            echo "Build completed successfully."
+        }
+
         failure {
+            echo "Build failed. Sending webhook..."
+
             httpRequest(
-                url: 'https://cobalt-confetti-turbofan.ngrok-free.dev/webhook/jenkins',
+                url: 'https://YOUR_NGROK_URL/webhook/jenkins',
                 httpMode: 'POST',
                 contentType: 'APPLICATION_JSON',
-                customHeaders: [[name: 'X-Jenkins-Signature', value: 'ba5bcf2a66f7042820997725120073cb078be39dfdf43c228ba665e52c12fd39']],                requestBody: """
+                customHeaders: [[
+                    name: 'X-Jenkins-Signature',
+                    value: 'YOUR_SIGNATURE'
+                ]],
+                requestBody: """
                 {
                     "name": "${env.JOB_NAME}",
                     "repo_name": "OmarHamza22/jenkins-test-repo",
