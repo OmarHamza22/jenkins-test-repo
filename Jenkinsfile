@@ -6,22 +6,18 @@ pipeline {
     }
 
     environment {
-        PYTHON = 'python'
+        PYTHON = 'C:\\Users\\lenovo\\AppData\\Local\\Python\\bin\\python.exe'
+        WEBHOOK_URL = 'https://cobalt-confetti-turbofan.ngrok-free.dev/webhook/jenkins'
+        WEBHOOK_SECRET = 'ba5bcf2a66f7042820997725120073cb078be39dfdf43c228ba665e52c12fd39'
     }
 
     stages {
 
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
         stage('Install Dependencies') {
             steps {
                 bat """
-                    %PYTHON% -m pip install --upgrade pip
-                    %PYTHON% -m pip install -r requirements.txt
+                    "%PYTHON%" -m pip install --upgrade pip
+                    "%PYTHON%" -m pip install -r requirements.txt
                 """
             }
         }
@@ -29,7 +25,7 @@ pipeline {
         stage('Run Tests') {
             steps {
                 bat """
-                    %PYTHON% -m pytest test_calculator.py -v --junitxml=pytest-report.xml
+                    "%PYTHON%" -m pytest test_calculator.py -v --junitxml=pytest-report.xml
                 """
             }
         }
@@ -39,23 +35,27 @@ pipeline {
 
         always {
             junit allowEmptyResults: true, testResults: 'pytest-report.xml'
-            archiveArtifacts artifacts: 'pytest-report.xml', fingerprint: true
+
+            archiveArtifacts(
+                artifacts: 'pytest-report.xml',
+                allowEmptyArchive: true
+            )
         }
 
         success {
-            echo "Build completed successfully."
+            echo '✅ Build completed successfully.'
         }
 
         failure {
-            echo "Build failed. Sending webhook..."
+            echo '❌ Build failed. Sending webhook...'
 
             httpRequest(
-                url: 'https://YOUR_NGROK_URL/webhook/jenkins',
+                url: "${WEBHOOK_URL}",
                 httpMode: 'POST',
                 contentType: 'APPLICATION_JSON',
                 customHeaders: [[
                     name: 'X-Jenkins-Signature',
-                    value: 'YOUR_SIGNATURE'
+                    value: "${WEBHOOK_SECRET}"
                 ]],
                 requestBody: """
                 {
@@ -74,6 +74,8 @@ pipeline {
                 }
                 """
             )
+
+            echo 'Webhook sent.'
         }
     }
 }
